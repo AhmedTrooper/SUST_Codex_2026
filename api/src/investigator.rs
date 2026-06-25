@@ -146,9 +146,9 @@ pub fn run_rules_investigation(req: &TicketAnalysisRequest) -> MatchResult {
         let tx_id = tx.transaction_id.clone();
 
         // Check for inconsistent pattern (e.g. wrong transfer claim but established relationship)
-        let is_wrong_transfer_claim = is_wrong_transfer_claim(&complaint_lower);
+        let has_explicit_wrong_transfer = is_explicit_wrong_transfer_claim(&complaint_lower);
 
-        if is_wrong_transfer_claim && tx.transaction_type == "transfer" {
+        if has_explicit_wrong_transfer && tx.transaction_type == "transfer" {
             // Count prior successful transactions to the same counterparty
             let prior_transfers = history.iter()
                 .filter(|t| t.transaction_id != tx_id && t.counterparty == cp && t.status == "completed")
@@ -169,17 +169,19 @@ pub fn run_rules_investigation(req: &TicketAnalysisRequest) -> MatchResult {
         }
 
         // Classify based on transaction type and complaint content
-        let case_type = if complaint_lower.contains("duplicate") || complaint_lower.contains("twice") || complaint_lower.contains("দুইবার") {
+        let case_type = if complaint_lower.contains("duplicate") || complaint_lower.contains("twice") || complaint_lower.contains("দুইবার") || complaint_lower.contains("two times") || complaint_lower.contains("২ বার") {
             CaseType::DuplicatePayment
+        } else if has_explicit_wrong_transfer {
+            CaseType::WrongTransfer
         } else if complaint_lower.contains("failed") || complaint_lower.contains("deducted") || tx.status == "failed" {
             CaseType::PaymentFailed
         } else if complaint_lower.contains("settlement") || tx.transaction_type == "settlement" {
             CaseType::MerchantSettlementDelay
         } else if complaint_lower.contains("cash") || tx.transaction_type == "cash_in" {
             CaseType::AgentCashInIssue
-        } else if complaint_lower.contains("refund") || complaint_lower.contains("change of mind") {
+        } else if complaint_lower.contains("refund") || complaint_lower.contains("change of mind") || complaint_lower.contains("changed my mind") {
             CaseType::RefundRequest
-        } else if is_wrong_transfer_claim {
+        } else if is_wrong_transfer_claim(&complaint_lower) {
             CaseType::WrongTransfer
         } else {
             CaseType::Other
@@ -251,8 +253,20 @@ pub fn run_rules_investigation(req: &TicketAnalysisRequest) -> MatchResult {
             counterparty: Some(cp),
         }
     } else {
-        // No match found
-        let case_type = if is_wrong_transfer_claim(&complaint_lower) {
+        // No match found — classify based on complaint keywords alone
+        let case_type = if complaint_lower.contains("duplicate") || complaint_lower.contains("twice") || complaint_lower.contains("দুইবার") || complaint_lower.contains("two times") || complaint_lower.contains("২ বার") {
+            CaseType::DuplicatePayment
+        } else if is_explicit_wrong_transfer_claim(&complaint_lower) {
+            CaseType::WrongTransfer
+        } else if complaint_lower.contains("failed") || complaint_lower.contains("deducted") {
+            CaseType::PaymentFailed
+        } else if complaint_lower.contains("settlement") || complaint_lower.contains("সেটেলমেন্ট") {
+            CaseType::MerchantSettlementDelay
+        } else if complaint_lower.contains("cash in") || complaint_lower.contains("cash-in") || complaint_lower.contains("ক্যাশ ইন") {
+            CaseType::AgentCashInIssue
+        } else if complaint_lower.contains("refund") || complaint_lower.contains("change of mind") || complaint_lower.contains("changed my mind") || complaint_lower.contains("রিফান্ড") {
+            CaseType::RefundRequest
+        } else if is_wrong_transfer_claim(&complaint_lower) {
             CaseType::WrongTransfer
         } else {
             CaseType::Other
@@ -260,11 +274,15 @@ pub fn run_rules_investigation(req: &TicketAnalysisRequest) -> MatchResult {
 
         let dept = match case_type {
             CaseType::WrongTransfer => Department::DisputeResolution,
+            CaseType::PaymentFailed | CaseType::DuplicatePayment => Department::PaymentsOps,
+            CaseType::MerchantSettlementDelay => Department::MerchantOperations,
+            CaseType::AgentCashInIssue => Department::AgentOperations,
             _ => Department::CustomerSupport,
         };
 
         let severity = match case_type {
-            CaseType::WrongTransfer => Severity::Medium,
+            CaseType::WrongTransfer | CaseType::PaymentFailed | CaseType::DuplicatePayment | CaseType::AgentCashInIssue => Severity::Medium,
+            CaseType::MerchantSettlementDelay => Severity::Medium,
             _ => Severity::Low,
         };
 
@@ -275,22 +293,29 @@ pub fn run_rules_investigation(req: &TicketAnalysisRequest) -> MatchResult {
             severity,
             department: dept,
             human_review_required: false,
-            matched_amount: None,
+            matched_amount: extract_numbers(&req.complaint).first().cloned(),
             counterparty: None,
         }
     }
 }
 
-fn is_wrong_transfer_claim(complaint_lower: &str) -> bool {
+fn is_explicit_wrong_transfer_claim(complaint_lower: &str) -> bool {
     complaint_lower.contains("wrong number")
         || complaint_lower.contains("wrong recipient")
         || complaint_lower.contains("wrong person")
         || complaint_lower.contains("typed it wrong")
         || complaint_lower.contains("sent to the wrong")
+        || complaint_lower.contains("wrong account")
+        || (complaint_lower.contains("by mistake")
+            && (complaint_lower.contains("sent") || complaint_lower.contains("send") || complaint_lower.contains("transfer")))
         || complaint_lower.contains("ভুল নাম্বার")
         || complaint_lower.contains("ভুল নম্বর")
         || complaint_lower.contains("ভুল অ্যাকাউন্ট")
         || complaint_lower.contains("ভুল করে")
+}
+
+fn is_wrong_transfer_claim(complaint_lower: &str) -> bool {
+    is_explicit_wrong_transfer_claim(complaint_lower)
         || complaint_lower.contains("sent")
         || complaint_lower.contains("send")
         || complaint_lower.contains("transfer")
@@ -302,7 +327,11 @@ pub async fn run_investigation(req: &TicketAnalysisRequest) -> TicketAnalysisRes
     let rules_res = run_rules_investigation(req);
     let is_bn = is_bangla(&req.complaint);
     let tx_id_str = rules_res.relevant_transaction_id.clone().unwrap_or_else(|| "N/A".to_string());
-    let amt_val = rules_res.matched_amount.unwrap_or(0.0);
+    let amt_val = rules_res.matched_amount.unwrap_or_else(|| {
+        extract_numbers(&req.complaint).into_iter()
+            .find(|n| *n >= 1.0)
+            .unwrap_or(0.0)
+    });
     let cp_str = rules_res.counterparty.clone().unwrap_or_else(|| "N/A".to_string());
 
     // Generate robust default templates based on case configurations
@@ -500,6 +529,28 @@ pub async fn run_investigation(req: &TicketAnalysisRequest) -> TicketAnalysisRes
         }
     }
 
+    // 3. Check for suspicious third-party referral instructions
+    {
+        let reply_lower_check = reply.to_lowercase();
+        let third_party_indicators = ["contact this number", "call this number", "visit this link",
+            "click here", "go to this website", "send money to", "pay this person",
+            "reach them at", "এই নম্বরে যোগাযোগ", "এই লিংকে", "টাকা পাঠান"];
+        for indicator in &third_party_indicators {
+            if reply_lower_check.contains(indicator)
+                && !reply_lower_check.contains("official")
+                && !reply_lower_check.contains("support channel")
+                && !reply_lower_check.contains("অফিসিয়াল")
+            {
+                reply = if is_bn {
+                    "আমাদের সাথে যোগাযোগ করার জন্য ধন্যবাদ। আমরা আপনার বিষয়টি পর্যালোচনা করছি এবং অফিসিয়াল চ্যানেলের মাধ্যমে আপনাকে আপডেট জানাব। কারো সাথে আপনার পিন বা ওটিপি শেয়ার করবেন না।".to_string()
+                } else {
+                    "Thank you for reaching out. We are reviewing your issue and will get back to you through official channels. Please do not share your PIN or OTP with anyone.".to_string()
+                };
+                break;
+            }
+        }
+    }
+
     // Helper closure to sanitize financial promises and unauthorized recovery/unblock confirmations
     let sanitize_compliance = |mut s: String| -> String {
         let lower = s.to_lowercase();
@@ -545,6 +596,32 @@ pub async fn run_investigation(req: &TicketAnalysisRequest) -> TicketAnalysisRes
     reply = sanitize_compliance(reply);
     action = sanitize_compliance(action);
 
+    // Compute contextual confidence and reason_codes before moving fields
+    let confidence_val = match (&rules_res.evidence_verdict, &rules_res.case_type) {
+        (EvidenceVerdict::Consistent, CaseType::PhishingOrSocialEngineering) => 0.95,
+        (EvidenceVerdict::Consistent, _) => 0.9,
+        (EvidenceVerdict::Inconsistent, _) => 0.75,
+        (EvidenceVerdict::InsufficientData, CaseType::Other) => 0.5,
+        (EvidenceVerdict::InsufficientData, _) => 0.65,
+    };
+    let reason_codes_val = {
+        let mut codes: Vec<String> = Vec::new();
+        if let Ok(case_val) = serde_json::to_value(&rules_res.case_type) {
+            if let Some(s) = case_val.as_str() {
+                codes.push(s.to_string());
+            }
+        }
+        if rules_res.relevant_transaction_id.is_some() {
+            codes.push("transaction_match".to_string());
+        } else {
+            codes.push("needs_clarification".to_string());
+        }
+        if rules_res.human_review_required {
+            codes.push("human_review_flagged".to_string());
+        }
+        codes
+    };
+
     TicketAnalysisResponse {
         ticket_id: req.ticket_id.clone(),
         relevant_transaction_id: rules_res.relevant_transaction_id,
@@ -556,7 +633,7 @@ pub async fn run_investigation(req: &TicketAnalysisRequest) -> TicketAnalysisRes
         recommended_next_action: action,
         customer_reply: reply,
         human_review_required: rules_res.human_review_required,
-        confidence: Some(0.9),
-        reason_codes: Some(vec!["rule_evaluated".to_string()]),
+        confidence: Some(confidence_val),
+        reason_codes: Some(reason_codes_val),
     }
 }

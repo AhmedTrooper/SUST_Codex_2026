@@ -25,9 +25,19 @@ pub async fn health_check() -> impl IntoResponse {
 
 pub async fn analyze_ticket(
     State(state): State<crate::AppState>,
-    Json(payload): Json<TicketAnalysisRequest>,
+    payload_result: Result<Json<TicketAnalysisRequest>, axum::extract::rejection::JsonRejection>,
 ) -> impl IntoResponse {
     use redis::AsyncCommands;
+
+    let payload = match payload_result {
+        Ok(Json(p)) => p,
+        Err(_) => {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "Invalid or malformed JSON request body" })),
+            ).into_response();
+        }
+    };
 
     if payload.complaint.trim().is_empty() || payload.ticket_id.trim().is_empty() {
         return (
@@ -278,7 +288,7 @@ mod tests {
                     metadata: None,
                 };
                 
-                let _ = analyze_ticket(State(state.clone()), Json(req)).await;
+                let _ = analyze_ticket(State(state.clone()), Ok(Json(req))).await;
             }
 
             let query_1 = ListTicketsQuery {
@@ -340,10 +350,10 @@ mod tests {
                 metadata: None,
             };
 
-            let resp_1 = analyze_ticket(State(state.clone()), Json(req.clone())).await.into_response();
+            let resp_1 = analyze_ticket(State(state.clone()), Ok(Json(req.clone()))).await.into_response();
             assert_eq!(resp_1.status(), axum::http::StatusCode::OK);
 
-            let resp_2 = analyze_ticket(State(state.clone()), Json(req)).await.into_response();
+            let resp_2 = analyze_ticket(State(state.clone()), Ok(Json(req))).await.into_response();
             assert_eq!(resp_2.status(), axum::http::StatusCode::OK);
         } else {
             println!("Skipping Redis cache integration test: REDIS_URL not set or connection failed");
@@ -372,7 +382,7 @@ mod tests {
             transaction_history: None,
             metadata: None,
         };
-        let resp_empty_complaint = analyze_ticket(State(state.clone()), Json(req_empty_complaint)).await.into_response();
+        let resp_empty_complaint = analyze_ticket(State(state.clone()), Ok(Json(req_empty_complaint))).await.into_response();
         assert_eq!(resp_empty_complaint.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
 
         let req_empty_ticket = TicketAnalysisRequest {
@@ -385,7 +395,7 @@ mod tests {
             transaction_history: None,
             metadata: None,
         };
-        let resp_empty_ticket = analyze_ticket(State(state.clone()), Json(req_empty_ticket)).await.into_response();
+        let resp_empty_ticket = analyze_ticket(State(state.clone()), Ok(Json(req_empty_ticket))).await.into_response();
         assert_eq!(resp_empty_ticket.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
     }
 }

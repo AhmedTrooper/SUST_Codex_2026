@@ -72,6 +72,46 @@ graph TD
 
 ---
 
+## 📦 Packages & Data Models
+
+### 📦 Key Packages & Dependencies
+
+#### Backend Crates (Rust)
+* **`rig`**: Lightweight and powerful LLM integration library used to prompt models, configure preambles, and structured output.
+* **`axum`**: Web framework for building the API endpoints (`/analyze-ticket`, `/health`, etc.).
+* **`tokio`**: Asynchronous runtime driving the entire backend system.
+* **`sqlx`**: Asynchronous compile-time safe database driver for PostgreSQL audit logging.
+* **`redis`**: Caching client used to interact with Redis for sub-5ms caching responses.
+* **`serde` & `serde_json`**: Handling robust serialization and deserialization of API payloads.
+
+#### Frontend Packages (npm / Bun)
+* **`@tanstack/react-start`**: Full-stack framework core providing type-safe routing, SSR, and API integration.
+* **`tailwindcss` & `@tailwindcss/vite`**: Styling utility used to craft the sleek dark-mode user dashboard.
+* **`motion`**: High-performance animation engine for fluid transitions and interactive UI feedback.
+* **`lucide-react`**: Clean, modern iconography across the admin panel.
+* **`zod`**: Client-side schema validation for form submissions.
+
+### 📐 Core Data Models (Structs)
+
+We model our ticket analysis domain using the following Rust structs (defined in [models.rs](file:///home/ahmedtrooper/ProgrammingFiles/Hackathon/SUST_Codex_2026/api/src/models.rs)):
+
+* **`TicketAnalysisRequest`**: The payload sent by clients containing:
+  - `ticket_id`: Unique identifier for the customer support ticket.
+  - `complaint`: The raw language text from the customer.
+  - `language` / `channel` / `user_type` / `campaign_context`: Metadata surrounding the query.
+  - `transaction_history`: List of recent transactions to check against.
+* **`TicketAnalysisResponse`**: The return payload containing:
+  - `evidence_verdict`: Domain match verdict (`consistent`, `inconsistent`, `insufficient_data`).
+  - `case_type`: Identified category (e.g. `wrong_transfer`, `payment_failed`, etc.).
+  - `severity` & `department`: Routed urgency levels and teams.
+  - `agent_summary`, `recommended_next_action`, and `customer_reply`.
+  - `human_review_required` & `confidence`.
+* **`Transaction`**: Individual financial ledger records:
+  - `transaction_id`, `timestamp`, `transaction_type`, `amount`, `counterparty`, `status`.
+* **`StoredTicket`**: The persisted model mapped to database rows for SQLx audit logs.
+
+---
+
 ## 📄 Sample Request & Response
 
 ### POST `/analyze-ticket` Request Body
