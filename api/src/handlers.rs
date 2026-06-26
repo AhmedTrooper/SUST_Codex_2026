@@ -29,6 +29,13 @@ pub async fn analyze_ticket(
 ) -> impl IntoResponse {
     use redis::AsyncCommands;
 
+    if payload.complaint.trim().is_empty() || payload.ticket_id.trim().is_empty() {
+        return (
+            axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "ticket_id and complaint must not be empty" })),
+        ).into_response();
+    }
+
     let cache_key = get_cache_key(&payload);
 
     // 1. Try to fetch from Redis Cache first
@@ -341,5 +348,44 @@ mod tests {
         } else {
             println!("Skipping Redis cache integration test: REDIS_URL not set or connection failed");
         }
+    }
+
+    #[tokio::test]
+    async fn test_unprocessable_entity() {
+        use crate::AppState;
+        use crate::models::TicketAnalysisRequest;
+        use axum::extract::State;
+        use axum::Json;
+
+        let state = AppState {
+            db_pool: None,
+            redis_client: None,
+        };
+
+        let req_empty_complaint = TicketAnalysisRequest {
+            ticket_id: "TKT-001".to_string(),
+            complaint: "".to_string(),
+            language: None,
+            channel: None,
+            user_type: None,
+            campaign_context: None,
+            transaction_history: None,
+            metadata: None,
+        };
+        let resp_empty_complaint = analyze_ticket(State(state.clone()), Json(req_empty_complaint)).await.into_response();
+        assert_eq!(resp_empty_complaint.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+
+        let req_empty_ticket = TicketAnalysisRequest {
+            ticket_id: "".to_string(),
+            complaint: "Some valid complaint".to_string(),
+            language: None,
+            channel: None,
+            user_type: None,
+            campaign_context: None,
+            transaction_history: None,
+            metadata: None,
+        };
+        let resp_empty_ticket = analyze_ticket(State(state.clone()), Json(req_empty_ticket)).await.into_response();
+        assert_eq!(resp_empty_ticket.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
     }
 }
