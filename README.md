@@ -51,6 +51,67 @@ graph TD
 
 ---
 
+## 🛠️ Tech Stack & Tools Used
+
+### Backend API (Rust)
+* **Axum & Tokio**: Asynchronous high-performance web framework and runtime.
+* **SQLx**: Asynchronous compile-time verified database driver for PostgreSQL audit logging.
+* **Redis**: Microsecond caching layer used to bypass LLM calls on repeat inputs.
+* **Rig Library**: Integration framework used for declarative LLM prompt structures and completions.
+
+### Frontend Dashboard (React)
+* **Vite & Bun**: Build environments and dependency runtime.
+* **TanStack Start & React Router**: Framework core providing reactive page layouts and log statistics.
+* **Tailwind CSS v4 & Vanilla CSS**: Modern, animated monochrome interface.
+
+---
+
+## 📄 Sample Request & Response
+
+### POST `/analyze-ticket` Request Body
+```json
+{
+  "ticket_id": "TKT-001",
+  "complaint": "I sent 5000 taka to a wrong number around 2pm today. The number was supposed to be 01712345678 but I think I typed it wrong. The person isn't responding to my call. Please help me get my money back.",
+  "language": "en",
+  "channel": "in_app_chat",
+  "user_type": "customer",
+  "campaign_context": "boishakh_bonanza_day_1",
+  "transaction_history": [
+    {
+      "transaction_id": "TXN-9101",
+      "timestamp": "2026-04-14T14:08:22Z",
+      "type": "transfer",
+      "amount": 5000,
+      "counterparty": "+8801719876543",
+      "status": "completed"
+    }
+  ]
+}
+```
+
+### POST `/analyze-ticket` Response Body
+```json
+{
+  "ticket_id": "TKT-001",
+  "relevant_transaction_id": "TXN-9101",
+  "evidence_verdict": "consistent",
+  "case_type": "wrong_transfer",
+  "severity": "high",
+  "department": "dispute_resolution",
+  "agent_summary": "Customer reports sending 5000 BDT via TXN-9101 to +8801719876543, which they now believe was the wrong recipient. Recipient is unresponsive.",
+  "recommended_next_action": "Verify TXN-9101 details with the customer and initiate the wrong-transfer dispute workflow per policy.",
+  "customer_reply": "We have noted your concern about transaction TXN-9101. Please do not share your PIN or OTP with anyone. Our dispute team will review the case and contact you through official support channels.",
+  "human_review_required": true,
+  "confidence": 0.9,
+  "reason_codes": [
+    "rule_evaluated"
+  ]
+}
+```
+
+---
+
 ## 🛠️ Complete Setup & Run Instructions
 
 You can spin up and interact with this project using one of the three setup methods outlined below:
