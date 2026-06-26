@@ -26,6 +26,32 @@ impl AppConfig {
             {
                 Ok(pool) => {
                     info!("PostgreSQL connection pool initialized.");
+                    if let Err(e) = sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS analyzed_tickets (
+                            ticket_id VARCHAR(255) PRIMARY KEY,
+                            complaint TEXT NOT NULL,
+                            language VARCHAR(50),
+                            channel VARCHAR(50),
+                            user_type VARCHAR(50),
+                            campaign_context VARCHAR(100),
+                            relevant_transaction_id VARCHAR(255),
+                            evidence_verdict VARCHAR(50) NOT NULL,
+                            case_type VARCHAR(100) NOT NULL,
+                            severity VARCHAR(50) NOT NULL,
+                            department VARCHAR(100) NOT NULL,
+                            agent_summary TEXT NOT NULL,
+                            recommended_next_action TEXT NOT NULL,
+                            customer_reply TEXT NOT NULL,
+                            human_review_required BOOLEAN NOT NULL,
+                            confidence DOUBLE PRECISION,
+                            reason_codes JSONB,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                        );"
+                    ).execute(&pool).await {
+                        tracing::error!("Failed to initialize database table: {e}");
+                    } else {
+                        info!("analyzed_tickets table verified/created.");
+                    }
                     Some(pool)
                 }
                 Err(e) => {

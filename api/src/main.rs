@@ -8,6 +8,11 @@ use config::AppConfig;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[derive(Clone)]
+pub struct AppState {
+    pub db_pool: Option<sqlx::PgPool>,
+}
+
 #[tokio::main]
 async fn main() {
     // Initialize logging
@@ -27,9 +32,15 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    let state = AppState {
+        db_pool: config.db_pool.clone(),
+    };
+
     let app = Router::new()
         .route("/health", get(handlers::health_check))
         .route("/analyze-ticket", post(handlers::analyze_ticket))
+        .route("/tickets", get(handlers::list_tickets))
+        .with_state(state)
         .layer(cors);
 
     // Bind to 0.0.0.0 on the configured port

@@ -84,3 +84,38 @@ pub struct TicketAnalysisResponse {
     pub confidence: Option<f64>,
     pub reason_codes: Option<Vec<String>>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, sqlx::FromRow)]
+pub struct StoredTicket {
+    pub ticket_id: String,
+    pub complaint: String,
+    pub language: Option<String>,
+    pub channel: Option<String>,
+    pub user_type: Option<String>,
+    pub campaign_context: Option<String>,
+    pub relevant_transaction_id: Option<String>,
+    pub evidence_verdict: String,
+    pub case_type: String,
+    pub severity: String,
+    pub department: String,
+    pub agent_summary: String,
+    pub recommended_next_action: String,
+    pub customer_reply: String,
+    pub human_review_required: bool,
+    pub confidence: Option<f64>,
+    pub reason_codes: Option<serde_json::Value>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PaginatedTicketsResponse {
+    pub tickets: Vec<StoredTicket>,
+    pub pagination: PaginationInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PaginationInfo {
+    pub limit: i64,
+    pub offset: i64,
+    pub total: i64,
+}
