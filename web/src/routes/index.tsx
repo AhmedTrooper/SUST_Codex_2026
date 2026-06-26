@@ -361,9 +361,9 @@ function Home() {
 						{!showTutorial && (
 							<Button
 								variant="ghost"
-								size="xs"
+								size="sm"
 								onClick={() => setShowTutorial(true)}
-								className="mr-2 border border-dashed border-[var(--line)]"
+								className="mr-2 border border-dashed border-[var(--line)] font-mono text-xs"
 							>
 								Show Guide
 							</Button>
@@ -373,22 +373,25 @@ function Home() {
 						</span>
 						<Button
 							variant="outline"
-							size="xs"
+							size="sm"
 							onClick={() => loadSample("wrong_transfer")}
+							className="font-mono text-xs"
 						>
 							Wrong Transfer
 						</Button>
 						<Button
 							variant="outline"
-							size="xs"
+							size="sm"
 							onClick={() => loadSample("failed_payment")}
+							className="font-mono text-xs"
 						>
 							Failed Payment
 						</Button>
 						<Button
 							variant="outline"
-							size="xs"
+							size="sm"
 							onClick={() => loadSample("phishing")}
+							className="font-mono text-xs"
 						>
 							Phishing Report
 						</Button>
@@ -399,13 +402,14 @@ function Home() {
 			{/* Collapsible Tutorial Guide */}
 			{showTutorial && (
 				<section className="mb-8 p-5 border border-black dark:border-white rounded-lg bg-[var(--foam)] text-left relative rise-in">
-					<button
-						type="button"
+					<Button
+						variant="ghost"
+						size="sm"
 						onClick={() => setShowTutorial(false)}
-						className="absolute top-4 right-4 text-xs font-mono text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)] border border-[var(--line)] px-2 py-0.5 rounded bg-[var(--chip-bg)] transition-all"
+						className="absolute top-4 right-4 text-xs font-mono text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)] border border-[var(--line)] px-2 bg-[var(--chip-bg)] transition-all"
 					>
 						Dismiss Guide
-					</button>
+					</Button>
 
 					<h2 className="text-base font-bold uppercase tracking-wider text-[var(--sea-ink)] m-0 mb-3 flex items-center gap-2">
 						<span className="h-2 w-2 rounded-full bg-black dark:bg-white animate-pulse" />
@@ -585,8 +589,9 @@ function Home() {
 								<Button
 									type="button"
 									variant="outline"
-									size="xs"
+									size="sm"
 									onClick={addTransaction}
+									className="font-mono text-xs"
 								>
 									<Plus className="size-3.5 mr-1" /> Add Txn
 								</Button>
@@ -839,9 +844,9 @@ function Home() {
 									<Button
 										type="button"
 										variant="outline"
-										size="xs"
+										size="sm"
 										onClick={() => copyToClipboard(result.customer_reply)}
-										className="h-7 gap-1"
+										className="gap-1.5 font-mono text-xs"
 									>
 										{copied ? (
 											<>
