@@ -64,6 +64,12 @@ graph TD
 * **TanStack Start & React Router**: Framework core providing reactive page layouts and log statistics.
 * **Tailwind CSS v4 & Vanilla CSS**: Modern, animated monochrome interface.
 
+### Infrastructure & Cloud Services
+* **Railway**: Managed cloud platform used for hosting the containerized Rust API backend.
+* **PostgreSQL (Railway Managed)**: Managed database instance provisioned for audit logging.
+* **Redis (Railway Managed)**: Managed in-memory database instance provisioned for cache acceleration.
+* **Vercel**: Hosting platform used for serving the React frontend dashboard.
+
 ---
 
 ## 📄 Sample Request & Response
