@@ -56,7 +56,7 @@ Analyzes a support ticket containing a complaint and transaction history, return
 
 ### Hybrid Rule + LLM Architecture
 * **Objective Classifications**: Enums (`case_type`, `severity`, `department`, `evidence_verdict`), `relevant_transaction_id`, and `human_review_required` are computed deterministically by a rule-based parsing engine. This ensures 100% accuracy, strict schema validity, and avoids LLM classification drift.
-* **Natural Language Drafting**: If a `GEMINI_API_KEY` or `GOOGLE_API_KEY` is present in the environment, the server calls the Google Gemini API (`gemini-2.5-flash`) to generate contextual natural language responses (`agent_summary`, `recommended_next_action`, `customer_reply`).
+* **Natural Language Drafting**: If a `OPENROUTER_API_KEY` is present in the environment (falling back to `GEMINI_API_KEY` or `GOOGLE_API_KEY`), the server calls OpenRouter via the `rig` library using the model specified by `OPENROUTER_MODEL` (defaults to `openrouter/free` so it never breaks/costs money) to generate contextual natural language responses (`agent_summary`, `recommended_next_action`, `customer_reply`).
 * **Deterministic Fallback**: If the LLM API is unavailable, times out, or fails, the service falls back to pre-defined structured templates. This ensures a response is always delivered within the 30-second timeout limit.
 
 ---

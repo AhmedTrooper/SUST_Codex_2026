@@ -2,6 +2,8 @@ use crate::models::{
     TicketAnalysisRequest, TicketAnalysisResponse, EvidenceVerdict, CaseType, Severity, Department
 };
 use std::env;
+use rig::client::CompletionClient;
+use rig::completion::Prompt;
 
 pub fn is_bangla(text: &str) -> bool {
     text.chars().any(|c| ('\u{0980}'..='\u{09FF}').contains(&c))
@@ -420,59 +422,63 @@ pub async fn run_investigation(req: &TicketAnalysisRequest) -> TicketAnalysisRes
     };
 
     // If an external LLM API Key is configured in the environment, try to invoke it for natural language enhancement
-    let api_key = env::var("GEMINI_API_KEY").or_else(|_| env::var("GOOGLE_API_KEY")).ok();
-    if let Some(key) = api_key {
-        let client = reqwest::Client::new();
-        let prompt = format!(
-            "Analyze this customer complaint and recent transactions to generate summary, next action, and a safe reply.
-            Complaint: \"{}\"
-            Matched Transaction: {{ id: \"{}\", amount: {}, counterparty: \"{}\", verdict: \"{:?}\", type: \"{:?}\" }}
-            
-            Follow these safety rules:
-            - Never ask for PIN, OTP, password, or full card number.
-            - Never promise a refund/reversal directly. Use safe phrasing like 'any eligible amount will be returned through official channels'.
-            - Never direct to external or suspicious third parties.
-            - The reply should be in the same language as the complaint (English or Bangla).
-            
-            Provide the output as JSON matching:
-            {{
-              \"agent_summary\": \"one or two sentences summary\",
-              \"recommended_next_action\": \"suggested action for agent\",
-              \"customer_reply\": \"safe official response to customer\"
-            }}",
-            req.complaint, tx_id_str, amt_val, cp_str, rules_res.evidence_verdict, rules_res.case_type
-        );
+    let openrouter_key = env::var("OPENROUTER_API_KEY")
+        .or_else(|_| env::var("GEMINI_API_KEY"))
+        .or_else(|_| env::var("GOOGLE_API_KEY"))
+        .ok();
 
-        let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}", key);
-        let payload = serde_json::json!({
-            "contents": [{
-                "parts": [{ "text": prompt }]
-            }],
-            "generationConfig": {
-                "responseMimeType": "application/json"
-            }
-        });
+    if let Some(key) = openrouter_key {
+        let model_name = env::var("OPENROUTER_MODEL")
+            .unwrap_or_else(|_| "openrouter/free".to_string());
 
-        match client.post(&url).json(&payload).send().await {
-            Ok(res) => {
-                if let Ok(res_body) = res.json::<serde_json::Value>().await {
-                    if let Some(text_content) = res_body["candidates"][0]["content"]["parts"][0]["text"].as_str() {
-                        if let Ok(parsed_json) = serde_json::from_str::<serde_json::Value>(text_content) {
-                            if let Some(s) = parsed_json["agent_summary"].as_str() {
-                                summary = s.to_string();
-                            }
-                            if let Some(a) = parsed_json["recommended_next_action"].as_str() {
-                                action = a.to_string();
-                            }
-                            if let Some(r) = parsed_json["customer_reply"].as_str() {
-                                reply = r.to_string();
-                            }
+        if let Ok(client) = rig::providers::openrouter::Client::new(&key) {
+            let agent = client.agent(&model_name)
+                .preamble("You are a fintech support copilot. Given a ticket and matching details, output a JSON object containing agent_summary, recommended_next_action, and customer_reply.")
+                .build();
+
+            let prompt = format!(
+                "Analyze this customer complaint and recent transactions to generate summary, next action, and a safe reply.
+                Complaint: \"{}\"
+                Matched Transaction: {{ id: \"{}\", amount: {}, counterparty: \"{}\", verdict: \"{:?}\", type: \"{:?}\" }}
+                
+                Follow these safety rules:
+                - Never ask for PIN, OTP, password, or full card number.
+                - Never promise a refund/reversal directly. Use safe phrasing like 'any eligible amount will be returned through official channels'.
+                - Never direct to external or suspicious third parties.
+                - The reply should be in the same language as the complaint (English or Bangla).
+                
+                Provide the output as JSON matching:
+                {{
+                  \"agent_summary\": \"one or two sentences summary\",
+                  \"recommended_next_action\": \"suggested action for agent\",
+                  \"customer_reply\": \"safe response to customer\"
+                }}",
+                req.complaint, tx_id_str, amt_val, cp_str, rules_res.evidence_verdict, rules_res.case_type
+            );
+
+            match agent.prompt(&prompt).await {
+                Ok(text_content) => {
+                    let clean_text = text_content.trim()
+                        .strip_prefix("```json").unwrap_or(&text_content)
+                        .strip_suffix("```").unwrap_or(&text_content)
+                        .trim()
+                        .to_string();
+
+                    if let Ok(parsed_json) = serde_json::from_str::<serde_json::Value>(&clean_text) {
+                        if let Some(s) = parsed_json["agent_summary"].as_str() {
+                            summary = s.to_string();
+                        }
+                        if let Some(a) = parsed_json["recommended_next_action"].as_str() {
+                            action = a.to_string();
+                        }
+                        if let Some(r) = parsed_json["customer_reply"].as_str() {
+                            reply = r.to_string();
                         }
                     }
                 }
-            }
-            Err(e) => {
-                tracing::warn!("Gemini API call failed: {e}. Falling back to rule-based templates.");
+                Err(e) => {
+                    tracing::warn!("OpenRouter Rig call failed: {e}. Falling back to rule-based templates.");
+                }
             }
         }
     }
