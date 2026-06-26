@@ -5,6 +5,7 @@ use tracing::info;
 pub struct AppConfig {
     pub port: u16,
     pub db_pool: Option<PgPool>,
+    pub redis_client: Option<redis::Client>,
 }
 
 impl AppConfig {
@@ -64,6 +65,23 @@ impl AppConfig {
             None
         };
 
-        Self { port, db_pool }
+        let redis_client = if let Ok(redis_url) = env::var("REDIS_URL") {
+            info!("Connecting to Redis...");
+            match redis::Client::open(redis_url) {
+                Ok(client) => {
+                    info!("Redis client initialized.");
+                    Some(client)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to open Redis client: {e}");
+                    None
+                }
+            }
+        } else {
+            info!("No REDIS_URL set. Running without Redis cache.");
+            None
+        };
+
+        Self { port, db_pool, redis_client }
     }
 }

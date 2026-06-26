@@ -4,9 +4,18 @@ use axum::{
     response::IntoResponse,
 };
 use crate::models::{
-    HealthStatus, TicketAnalysisRequest,
+    HealthStatus, TicketAnalysisRequest, TicketAnalysisResponse,
     StoredTicket, PaginatedTicketsResponse, PaginationInfo,
 };
+
+fn get_cache_key(req: &TicketAnalysisRequest) -> String {
+    let serialized = serde_json::to_string(req).unwrap_or_default();
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    serialized.hash(&mut hasher);
+    format!("ticket_cache:{:x}", hasher.finish())
+}
 
 pub async fn health_check() -> impl IntoResponse {
     Json(HealthStatus {
@@ -18,9 +27,36 @@ pub async fn analyze_ticket(
     State(state): State<crate::AppState>,
     Json(payload): Json<TicketAnalysisRequest>,
 ) -> impl IntoResponse {
+    use redis::AsyncCommands;
+
+    let cache_key = get_cache_key(&payload);
+
+    // 1. Try to fetch from Redis Cache first
+    if let Some(ref client) = state.redis_client {
+        if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
+            let cached_val_res: Result<String, redis::RedisError> = conn.get(&cache_key).await;
+            if let Ok(cached_val) = cached_val_res {
+                if let Ok(cached_resp) = serde_json::from_str::<TicketAnalysisResponse>(&cached_val) {
+                    tracing::info!("Cache hit for ticket {}", payload.ticket_id);
+                    return Json(cached_resp).into_response();
+                }
+            }
+        }
+    }
+
+    // 2. Perform fresh analysis
     let response = crate::investigator::run_investigation(&payload).await;
 
-    // Persist to Postgres database if available
+    // 3. Store in Redis Cache
+    if let Some(ref client) = state.redis_client {
+        if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
+            if let Ok(serialized_resp) = serde_json::to_string(&response) {
+                let _: Result<(), redis::RedisError> = conn.set_ex(&cache_key, serialized_resp, 3600).await;
+            }
+        }
+    }
+
+    // 4. Persist to Postgres database if available
     if let Some(ref pool) = state.db_pool {
         let req_clone = payload.clone();
         let res_clone = response.clone();
@@ -101,7 +137,7 @@ pub async fn analyze_ticket(
         }
     }
 
-    Json(response)
+    Json(response).into_response()
 }
 
 #[derive(serde::Deserialize)]
@@ -220,6 +256,7 @@ mod tests {
 
             let state = AppState {
                 db_pool: Some(pool.clone()),
+                redis_client: config.redis_client.clone(),
             };
 
             for i in 1..=3 {
@@ -264,8 +301,45 @@ mod tests {
             assert_eq!(page_2.pagination.total, 3);
             assert_eq!(page_2.pagination.limit, 2);
             assert_eq!(page_2.pagination.offset, 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_redis_caching() {
+        use crate::config::AppConfig;
+        use crate::AppState;
+        use crate::models::TicketAnalysisRequest;
+        use axum::extract::State;
+        use axum::Json;
+
+        let config = AppConfig::load().await;
+        if let Some(client) = config.redis_client {
+            let mut conn = client.get_multiplexed_async_connection().await.unwrap();
+            let _: Result<(), _> = redis::cmd("FLUSHDB").query_async(&mut conn).await;
+
+            let state = AppState {
+                db_pool: None,
+                redis_client: Some(client),
+            };
+
+            let req = TicketAnalysisRequest {
+                ticket_id: "TKT-CACHE-TEST".to_string(),
+                complaint: "I sent money twice by mistake. Need refund.".to_string(),
+                language: Some("en".to_string()),
+                channel: Some("in_app_chat".to_string()),
+                user_type: Some("customer".to_string()),
+                campaign_context: Some("test_campaign".to_string()),
+                transaction_history: None,
+                metadata: None,
+            };
+
+            let resp_1 = analyze_ticket(State(state.clone()), Json(req.clone())).await.into_response();
+            assert_eq!(resp_1.status(), axum::http::StatusCode::OK);
+
+            let resp_2 = analyze_ticket(State(state.clone()), Json(req)).await.into_response();
+            assert_eq!(resp_2.status(), axum::http::StatusCode::OK);
         } else {
-            println!("Skipping db integration test: DATABASE_URL not set or connection failed");
+            println!("Skipping Redis cache integration test: REDIS_URL not set or connection failed");
         }
     }
 }

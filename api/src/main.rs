@@ -11,6 +11,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[derive(Clone)]
 pub struct AppState {
     pub db_pool: Option<sqlx::PgPool>,
+    pub redis_client: Option<redis::Client>,
 }
 
 #[tokio::main]
@@ -34,6 +35,7 @@ async fn main() {
 
     let state = AppState {
         db_pool: config.db_pool.clone(),
+        redis_client: config.redis_client.clone(),
     };
 
     let app = Router::new()
