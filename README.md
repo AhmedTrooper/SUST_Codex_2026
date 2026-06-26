@@ -40,6 +40,29 @@ Production-grade internal AI/API copilot service designed for digital finance su
 
 ---
 
+## Frontend Setup (React/TanStack Start)
+
+1. **Install Dependencies**:
+   ```bash
+   cd web && bun install
+   ```
+
+2. **Configure Environment** (Optional):
+   The frontend runs out-of-the-box and points to `http://localhost:8080` (local backend). To point to a live deployed backend, set `VITE_API_URL`:
+   ```bash
+   export VITE_API_URL=https://your-deployed-api-url.com
+   ```
+
+3. **Run Client Locally**:
+   ```bash
+   make frontend
+   # or manually:
+   cd web && bun run dev
+   ```
+   The client will be running on `http://localhost:3000`.
+
+---
+
 ## API Endpoints
 
 ### 1. GET `/health`
