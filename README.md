@@ -44,3 +44,8 @@ Production-grade internal AI/API copilot service designed for digital finance su
 ### 1. GET `/health`
 Returns the status of the API service to indicate readiness.
 * **Response**: `{"status": "ok"}`
+
+### 2. POST `/analyze-ticket`
+Analyzes a support ticket containing a complaint and transaction history, returning structured investigator insights.
+* **Request**: JSON payload conforming to the request schema.
+* **Response**: Conforming structured JSON response.

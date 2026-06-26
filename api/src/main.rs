@@ -2,7 +2,7 @@ mod config;
 mod handlers;
 mod models;
 
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use config::AppConfig;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -26,9 +26,9 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build Axum router
     let app = Router::new()
         .route("/health", get(handlers::health_check))
+        .route("/analyze-ticket", post(handlers::analyze_ticket))
         .layer(cors);
 
     // Bind to 0.0.0.0 on the configured port
