@@ -188,26 +188,56 @@ function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!complaint.trim()) {
-      setError("Complaint text cannot be empty.");
+    
+    // 1. Validate Ticket ID
+    if (!ticketId.trim()) {
+      setError("Ticket ID cannot be empty.");
       return;
     }
+
+    // 2. Validate Complaint Text
+    if (!complaint.trim()) {
+      setError("Complaint details cannot be empty.");
+      return;
+    }
+    if (complaint.trim().length < 5) {
+      setError("Complaint details must be at least 5 characters long.");
+      return;
+    }
+
+    // 3. Validate Transaction History
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      if (!t.transaction_id.trim()) {
+        setError(`Transaction #${i + 1} is missing a Transaction ID.`);
+        return;
+      }
+      if (t.amount <= 0 || isNaN(t.amount)) {
+        setError(`Transaction #${i + 1} (${t.transaction_id}) amount must be a positive number greater than 0 BDT.`);
+        return;
+      }
+      if (!t.counterparty.trim()) {
+        setError(`Transaction #${i + 1} (${t.transaction_id}) is missing a Counterparty ID or Phone Number.`);
+        return;
+      }
+    }
+
     setError(null);
     setIsLoading(true);
 
     const payload = {
-      ticket_id: ticketId,
-      complaint: complaint,
+      ticket_id: ticketId.trim(),
+      complaint: complaint.trim(),
       language: language || undefined,
       channel: channel || undefined,
       user_type: userType || undefined,
-      campaign_context: campaignContext || undefined,
+      campaign_context: campaignContext.trim() || undefined,
       transaction_history: transactions.length > 0 ? transactions.map(t => ({
-        transaction_id: t.transaction_id,
+        transaction_id: t.transaction_id.trim(),
         timestamp: t.timestamp,
         type: t.transaction_type,
-        amount: Number(t.amount) || 0.0,
-        counterparty: t.counterparty || "N/A",
+        amount: Number(t.amount),
+        counterparty: t.counterparty.trim(),
         status: t.status,
       })) : undefined,
     };
