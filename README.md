@@ -68,6 +68,11 @@ Lists all analyzed tickets stored in the database.
 * **Natural Language Drafting**: If a `OPENROUTER_API_KEY` is present in the environment (falling back to `GEMINI_API_KEY` or `GOOGLE_API_KEY`), the server calls OpenRouter via the `rig` library using the model specified by `OPENROUTER_MODEL` (defaults to `openrouter/free` so it never breaks/costs money) to generate contextual responses.
 * **Deterministic Fallback**: If the LLM API is unavailable, times out, or fails, the service falls back to pre-defined structured templates.
 
+### MODELS
+* **`openrouter/free`** (Default fallback meta-model)
+  - **Where it runs**: Hosted externally on OpenRouter inference endpoints.
+  - **Why it was chosen**: Selected to provide cost-free, quota-resilient natural language drafting for customer replies without encountering usage rate limits.
+
 ### Storage & Cache Design (Production-Grade)
 * **Automatic Migrations**: On startup, if a `DATABASE_URL` is provided, the server initializes a connection pool and automatically runs inline migrations to ensure the `analyzed_tickets` table exists.
 * **PostgreSQL Persistence**: Every ticket processed by `/analyze-ticket` is stored in the database with idempotency handling (`ON CONFLICT DO UPDATE`).
