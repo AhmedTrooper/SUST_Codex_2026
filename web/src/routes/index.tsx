@@ -416,8 +416,8 @@ function Home() {
 						Copilot Walkthrough Guide
 					</h2>
 
-					<div className="grid grid-cols-1 md:grid-cols-5 gap-4 font-mono text-[11px] leading-relaxed text-[var(--sea-ink-soft)]">
-						<div className="p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 font-mono text-[11px] leading-relaxed text-[var(--sea-ink-soft)]">
+						<div className="guide-card p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
 							<span className="absolute top-2 right-2 text-lg font-bold opacity-20">
 								01
 							</span>
@@ -430,7 +430,7 @@ function Home() {
 								data.
 							</p>
 						</div>
-						<div className="p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
+						<div className="guide-card p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
 							<span className="absolute top-2 right-2 text-lg font-bold opacity-20">
 								02
 							</span>
@@ -442,7 +442,7 @@ function Home() {
 								to add or modify recent transactions.
 							</p>
 						</div>
-						<div className="p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
+						<div className="guide-card p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
 							<span className="absolute top-2 right-2 text-lg font-bold opacity-20">
 								03
 							</span>
@@ -454,7 +454,7 @@ function Home() {
 								consistency and queries OpenRouter for drafting.
 							</p>
 						</div>
-						<div className="p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
+						<div className="guide-card p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
 							<span className="absolute top-2 right-2 text-lg font-bold opacity-20">
 								04
 							</span>
@@ -467,7 +467,7 @@ function Home() {
 								blocked).
 							</p>
 						</div>
-						<div className="p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
+						<div className="guide-card p-3 border border-[var(--line)] bg-[var(--chip-bg)]/20 rounded relative">
 							<span className="absolute top-2 right-2 text-lg font-bold opacity-20">
 								05
 							</span>
@@ -940,7 +940,7 @@ function Home() {
 									<tr
 										key={ticket.ticket_id}
 										onClick={() => loadFromHistory(ticket)}
-										className="border-b border-[var(--line)] hover:bg-[var(--chip-bg)]/40 cursor-pointer transition-all"
+										className="hover-row border-b border-[var(--line)] cursor-pointer"
 									>
 										<td className="p-3 font-bold text-[var(--sea-ink)]">
 											{ticket.ticket_id}
