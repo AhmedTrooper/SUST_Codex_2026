@@ -2,6 +2,9 @@
 
 An enterprise-grade, hybrid rule-engine & LLM-powered internal copilot service designed for digital finance support teams. This platform classifies, routes, investigates, and drafts safe responses for customer tickets against transaction records under strict safety and compliance regulations.
 
+> [!TIP]
+> **Live Deployed Frontend Dashboard**: [https://sust-codex-2026.vercel.app/](https://sust-codex-2026.vercel.app/)
+
 ---
 
 ## 🏗️ Visual Architecture
