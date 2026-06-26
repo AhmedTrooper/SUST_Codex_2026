@@ -1,6 +1,7 @@
 mod config;
 mod handlers;
 mod models;
+mod investigator;
 
 use axum::{routing::{get, post}, Router};
 use config::AppConfig;

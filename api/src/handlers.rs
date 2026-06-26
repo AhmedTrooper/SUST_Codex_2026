@@ -1,7 +1,5 @@
 use axum::{Json, response::IntoResponse};
-use crate::models::{
-    HealthStatus, TicketAnalysisRequest, TicketAnalysisResponse, EvidenceVerdict, CaseType, Severity, Department
-};
+use crate::models::{HealthStatus, TicketAnalysisRequest};
 
 pub async fn health_check() -> impl IntoResponse {
     Json(HealthStatus {
@@ -12,22 +10,7 @@ pub async fn health_check() -> impl IntoResponse {
 pub async fn analyze_ticket(
     Json(payload): Json<TicketAnalysisRequest>,
 ) -> impl IntoResponse {
-    // Stub response conforming to output schema
-    let response = TicketAnalysisResponse {
-        ticket_id: payload.ticket_id,
-        relevant_transaction_id: None,
-        evidence_verdict: EvidenceVerdict::InsufficientData,
-        case_type: CaseType::Other,
-        severity: Severity::Low,
-        department: Department::CustomerSupport,
-        agent_summary: "Stub summary".to_string(),
-        recommended_next_action: "Stub action".to_string(),
-        customer_reply: "Stub reply".to_string(),
-        human_review_required: false,
-        confidence: Some(1.0),
-        reason_codes: Some(vec!["stub".to_string()]),
-    };
-    
+    let response = crate::investigator::run_investigation(&payload).await;
     Json(response)
 }
 
@@ -46,23 +29,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_analyze_ticket_stub() {
-        let req = TicketAnalysisRequest {
-            ticket_id: "TKT-TEST".to_string(),
-            complaint: "Testing ticket handler".to_string(),
-            language: None,
-            channel: None,
-            user_type: None,
-            campaign_context: None,
-            transaction_history: None,
-            metadata: None,
-        };
-        let response = analyze_ticket(Json(req)).await.into_response();
-        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    async fn test_preli_sample_cases() {
+        use std::fs;
+        use crate::investigator::run_investigation;
+        use crate::models::TicketAnalysisResponse;
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let resp_struct: TicketAnalysisResponse = serde_json::from_slice(&body).unwrap();
-        assert_eq!(resp_struct.ticket_id, "TKT-TEST");
-        assert_eq!(resp_struct.evidence_verdict, EvidenceVerdict::InsufficientData);
+        let file_content = fs::read_to_string("../SUST_Preli_Sample_Cases.json")
+            .expect("Failed to read sample cases file");
+        let cases_json: serde_json::Value = serde_json::from_str(&file_content)
+            .expect("Failed to parse sample cases JSON");
+
+        let cases = cases_json["cases"].as_array().expect("cases should be an array");
+
+        for case in cases {
+            let id = case["id"].as_str().unwrap();
+            let input_val = case["input"].clone();
+            let expected_val = case["expected_output"].clone();
+
+            let req: TicketAnalysisRequest = serde_json::from_value(input_val).unwrap();
+            let resp = run_investigation(&req).await;
+
+            let expected_resp: TicketAnalysisResponse = serde_json::from_value(expected_val).unwrap();
+
+            assert_eq!(resp.ticket_id, expected_resp.ticket_id, "Mismatch in case {}", id);
+            assert_eq!(resp.relevant_transaction_id, expected_resp.relevant_transaction_id, "Mismatch in case {}", id);
+            assert_eq!(resp.evidence_verdict, expected_resp.evidence_verdict, "Mismatch in case {}", id);
+            assert_eq!(resp.case_type, expected_resp.case_type, "Mismatch in case {}", id);
+            assert_eq!(resp.severity, expected_resp.severity, "Mismatch in case {}", id);
+            assert_eq!(resp.department, expected_resp.department, "Mismatch in case {}", id);
+            assert_eq!(resp.human_review_required, expected_resp.human_review_required, "Mismatch in case {}", id);
+        }
     }
 }

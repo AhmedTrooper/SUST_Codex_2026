@@ -7754,6 +7754,7 @@ dependencies = [
  "dotenvy",
  "redis 1.2.4",
  "redis-work-queue",
+ "reqwest 0.13.4",
  "rig",
  "serde",
  "serde_json",
