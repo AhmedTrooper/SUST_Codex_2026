@@ -483,26 +483,67 @@ pub async fn run_investigation(req: &TicketAnalysisRequest) -> TicketAnalysisRes
         }
     }
 
-    // Strict post-processing to guarantee Safety Rules are never violated even if LLM halluncinates
+    // Strict post-processing to guarantee Safety Rules are never violated even if LLM hallucinates
     let safety_keywords = vec!["pin", "otp", "password", "পাসওয়ার্ড", "পিন", "ওটিপি"];
     for kw in safety_keywords {
-        if reply.to_lowercase().contains(kw) && !reply.to_lowercase().contains("do not share") && !reply.to_lowercase().contains("never share") && !reply.to_lowercase().contains("শেয়ার করবেন না") {
+        if (reply.to_lowercase().contains(kw) && !reply.to_lowercase().contains("do not share") && !reply.to_lowercase().contains("never share") && !reply.to_lowercase().contains("শেয়ার করবেন না"))
+            || (action.to_lowercase().contains(kw) && !action.to_lowercase().contains("do not ask") && !action.to_lowercase().contains("never ask") && !action.to_lowercase().contains("চাইবেন না"))
+        {
             // Replace with a guaranteed safe default
             reply = if is_bn {
                 "ধন্যবাদ। আপনার নিরাপত্তা আমাদের অগ্রাধিকার। অনুগ্রহ করে আপনার পিন বা ওটিপি কারো সাথে শেয়ার করবেন না। আমাদের টিম বিষয়টি খতিয়ে দেখছে।".to_string()
             } else {
                 "Thank you for contacting us. To ensure your security, please never share your PIN, OTP, or password with anyone. Our support team is investigating the issue and will contact you via official channels.".to_string()
             };
+            action = "Escalate to fraud_risk and advise customer never to share sensitive credentials.".to_string();
             break;
         }
     }
 
-    // Guarantee no direct refund promises
-    if reply.to_lowercase().contains("we will refund") || reply.to_lowercase().contains("we will reverse") || reply.to_lowercase().contains("ফেরত দেব") {
-        reply = reply.replace("we will refund you", "any eligible amount will be returned through official channels")
-                     .replace("We will refund you", "Any eligible amount will be returned through official channels")
-                     .replace("we will reverse", "any eligible amount will be reversed through official channels");
-    }
+    // Helper closure to sanitize financial promises and unauthorized recovery/unblock confirmations
+    let sanitize_compliance = |mut s: String| -> String {
+        let lower = s.to_lowercase();
+        if lower.contains("we will refund") 
+            || lower.contains("i will refund")
+            || lower.contains("will refund you") 
+            || lower.contains("you will get a refund")
+            || lower.contains("refund is guaranteed")
+            || lower.contains("refund has been approved")
+            || lower.contains("we promise to refund")
+            || lower.contains("we will reverse")
+            || lower.contains("will reverse the transaction")
+            || lower.contains("reversal is confirmed")
+            || lower.contains("will be refunded")
+            || lower.contains("will be reversed")
+            || lower.contains("will unblock")
+            || lower.contains("will be unblocked")
+            || lower.contains("will recover")
+            || lower.contains("will be recovered")
+            || lower.contains("রিফান্ড করব")
+            || lower.contains("ফেরত দেওয়া হবে")
+            || lower.contains("ফেরত পাবেন")
+            || lower.contains("আনব্লক করা হবে")
+        {
+            // Replace unsafe text with standard compliant phrasing
+            s = s.replace("we will refund you", "any eligible amount will be returned through official channels")
+                 .replace("We will refund you", "Any eligible amount will be returned through official channels")
+                 .replace("we will refund", "any eligible amount will be returned through official channels")
+                 .replace("We will refund", "Any eligible amount will be returned through official channels")
+                 .replace("will be refunded", "will be reviewed for eligibility and processed through official channels")
+                 .replace("we will reverse", "any eligible amount will be reversed through official channels")
+                 .replace("We will reverse", "Any eligible amount will be reversed through official channels")
+                 .replace("will be reversed", "will be processed through official channels")
+                 .replace("unblock your account", "review account status through official channels")
+                 .replace("unblocked", "reviewed for compliance")
+                 .replace("recover your", "verify details via official channels")
+                 .replace("টাকা ফেরত দেওয়া হবে", "যথাযথ কর্তৃপক্ষের যাচাই সাপেক্ষে অফিসিয়াল চ্যানেলে ব্যবস্থা নেওয়া হবে")
+                 .replace("ফেরত পাবেন", "অফিসিয়াল চ্যানেলের মাধ্যমে আপডেট পাবেন");
+        }
+        s
+    };
+
+    reply = sanitize_compliance(reply);
+    action = sanitize_compliance(action);
 
     TicketAnalysisResponse {
         ticket_id: req.ticket_id.clone(),
